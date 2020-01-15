@@ -22,15 +22,10 @@
 #include "Adafruit_SSD1306.h"
 #include "HX711.h"
 #include "buttons.h"
+#include "CircularBuffer.h"
 
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
-
-#define NUMFLAKES 10
-#define XPOS 0
-#define YPOS 1
-#define DELTAY 2
-
 
 #if (SSD1306_LCDHEIGHT != 64)
 #error("Height incorrect, please fix Adafruit_SSD1306.h!");
@@ -39,6 +34,8 @@ Adafruit_SSD1306 display(OLED_RESET);
 // HX711 circuit wiring
 const int LOADCELL_DOUT_PIN = 3;
 const int LOADCELL_SCK_PIN = 2;
+
+// Scale buttons.
 const int ZERO_BUTTON_PIN = 12;
 const int AVG_BUTTON_PIN = 11;
 
@@ -51,35 +48,6 @@ char* float_to_str(float f) {
   //   -2345.7
   return dtostrf(f, 7, 1, fbuf);
 }
-
-template <typename T, int CAPACITY>
-class CircularBuffer {
-  private:
-    T buffer_[CAPACITY];
-    int size_;
-    int nextInsertIndex_;
-
-  public:
-    CircularBuffer() : buffer_{0}, size_(0), nextInsertIndex_(0) {}
-
-    void push(T value) {
-      buffer_[nextInsertIndex_] = value;
-      nextInsertIndex_ = (nextInsertIndex_ + 1) % CAPACITY;
-      if (size_ < CAPACITY) {
-        size_++;
-      }
-    }
-
-    int size() {
-      return size_;
-    }
-
-    // Index zero is the most-recently-pushed value,
-    // index 1 is the second-most-recently-pushed value, etc.
-    T operator[](int index) {
-      return buffer_[(CAPACITY + nextInsertIndex_ - 1 - index) % CAPACITY];
-    }
-};
 
 class AveragingScale {
   private:
@@ -370,6 +338,7 @@ void setup() {
 }
 
 void loop() {
+  display.clearDisplay();
 
   while (true) {
     ascale.readRaw();
@@ -378,27 +347,29 @@ void loop() {
     display.setTextColor(WHITE, BLACK);
     display.setCursor(0, 0);
     if (ascale.isAveraging()) {
-      display.print("AVG ");
+      display.print("AVG");
     } else if (ascale.isAutoAveraging()) {
-      display.print("AUT ");
+      display.print("AUT");
     } else {
-      display.print("    ");
+      display.print("   ");
     }
     double value = ascale.getUnits();
     // Don't distract with tiny fluctuations around zero.
-    if (value < 0.3 && value > -0.3) {
+    if (!ascale.isAveraging() && value < 0.3 && value > -0.3) {
       value = 0.0;
     }
 
     // display.clearDisplay();
 
+    display.setCursor(45, 0);
     display.print(float_to_str(value));
 
     for (int holdIndex = 0; holdIndex < 2 && holdIndex < ascale.hold_.size(); holdIndex++) {
       display.setTextSize(2);
       display.setTextColor(WHITE, BLACK);
       display.setCursor(0, 16 * (holdIndex+1));
-      display.print("HLD ");
+      display.print("HLD");
+      display.setCursor(45, 16 * (holdIndex+1));
       display.print(float_to_str(ascale.hold_[holdIndex]));
     }
 
