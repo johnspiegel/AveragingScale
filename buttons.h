@@ -1,8 +1,6 @@
 #ifndef _BUTTONS_H_
 #define _BUTTONS_H_
 
-#include <stdint.h>
-
 #if (ARDUINO >= 100)
  #include <Arduino.h>
 #else
@@ -10,13 +8,7 @@
  #include <pins_arduino.h>
 #endif
 
-#ifndef LOW
-#define LOW 0
-#endif
-
-#ifndef HIGH
-#define HIGH 0
-#endif
+#include <stdint.h>
 
 void watchDigitalPin(uint8_t pin);
 

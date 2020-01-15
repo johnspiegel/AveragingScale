@@ -1,19 +1,4 @@
 /*********************************************************************
-  This is an example for our Monochrome OLEDs based on SSD1306 drivers
-
-  Pick one up today in the adafruit shop!
-  ------> http://www.adafruit.com/category/63_98
-
-  This example is for a 128x64 size display using I2C to communicate
-  3 pins are required to interface (2 I2C and one reset)
-
-  Adafruit invests time and resources providing this open source code,
-  please support Adafruit and open-source hardware by purchasing
-  products from Adafruit!
-
-  Written by Limor Fried/Ladyada  for Adafruit Industries.
-  BSD license, check license.txt for more information
-  All text above, and the splash screen must be included in any redistribution
 *********************************************************************/
 
 
@@ -35,7 +20,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 const int LOADCELL_DOUT_PIN = 3;
 const int LOADCELL_SCK_PIN = 2;
 
-// Scale buttons.
+// Control Button wiring
 const int ZERO_BUTTON_PIN = 12;
 const int AVG_BUTTON_PIN = 11;
 
@@ -43,9 +28,10 @@ const int AVG_BUTTON_PIN = 11;
 constexpr double GRAMS_PER_RAW = 363.79 / 135703.0;
 
 char* float_to_str(float f) {
-  static char fbuf[12];
+  static char fbuf[16];
   // 7-wide: handle negative thousands with one decimal point:
-  //   -2345.7
+  //   |1234567|
+  //   |-2345.7|
   return dtostrf(f, 7, 1, fbuf);
 }
 
