@@ -1,0 +1,6 @@
+# Vim Files
+*.swp
+*.swo
+
+# Arduino.mk build files
+/build-*/
