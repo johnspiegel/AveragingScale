@@ -354,20 +354,21 @@ void loop() {
       if (!ascale.isAveraging() && value < 0.3 && value > -0.3) {
         value = 0.0;
       }
-      display.setCursor(45, 14);
+      display.setCursor(46, 14);
       display.print(float_to_str(value));
 
       display.setFont(u8g2_font_profont17_tr);
       for (int holdIndex = 0; holdIndex < 2 && holdIndex < ascale.hold_.size(); holdIndex++) {
         display.setCursor(0, 17 * (holdIndex+2));
         display.print("HLD");
-        display.setCursor(45, 17 * (holdIndex+2));
+        display.setCursor(65, 17 * (holdIndex+2));
         display.print(float_to_str(ascale.hold_[holdIndex]));
       }
 
       display.setFont(u8g2_font_profont12_tr);
       display.setCursor(0, 64);
-      display.print("Instant:     ");
+      display.print("Instant:");
+      display.setCursor(86, 64);
       display.print(float_to_str(ascale.getInstantUnits()));
       
     } while ( display.nextPage() );
