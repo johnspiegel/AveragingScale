@@ -1,20 +1,16 @@
 /*********************************************************************
 *********************************************************************/
 
-
 #include <Wire.h>
-#include "Adafruit_GFX.h"
-#include "Adafruit_SSD1306.h"
+#include <U8g2lib.h>
 #include "HX711.h"
 #include "buttons.h"
 #include "CircularBuffer.h"
 
-#define OLED_RESET 4
-Adafruit_SSD1306 display(OLED_RESET);
-
-#if (SSD1306_LCDHEIGHT != 64)
-#error("Height incorrect, please fix Adafruit_SSD1306.h!");
-#endif
+// 1.3" SH1106 DiyMall display.
+U8G2_SH1106_128X64_NONAME_2_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+// 0.96" SSD1306 DiyMall display.
+// U8G2_SSD1306_128X64_NONAME_1_HW_I2C display(U8G2_R0,  /* reset=*/ U8X8_PIN_NONE);
 
 // HX711 circuit wiring
 const int LOADCELL_DOUT_PIN = 3;
@@ -32,6 +28,12 @@ char* float_to_str(float f) {
   // 7-wide: handle negative thousands with one decimal point:
   //   |1234567|
   //   |-2345.7|
+  if (f > 99999.9) {
+    f = 99999.9;
+  }
+  if (f < -9999.9) {
+    f = -9999.9;
+  }
   return dtostrf(f, 7, 1, fbuf);
 }
 
@@ -296,19 +298,25 @@ AveragingScale ascale(&scale, GRAMS_PER_RAW, /*wiredBackwards=*/true);
 
 
 void setup() {
+  delay(1000);
   Serial.begin(9600);
 
   Serial.println(F("-------------------------"));
 
   Serial.println(F("Starting display..."));
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.setTextSize(2);
-  display.setTextColor(WHITE, BLACK);
-  display.println(F("Averaging"));
-  display.println(F("Scale"));
-  display.display();
+
+
+  display.begin();
+
+  display.setFont(u8g2_font_profont22_tr);
+  display.firstPage();
+  do {
+    display.setCursor(0, 14);
+    display.println(F("Averaging "));
+    display.setCursor(0, 14+22);
+    display.println(F("  Scale"));
+  } while( display.nextPage() );
+  delay(1000);
 
   Serial.println(F("starting scale..."));
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
@@ -324,48 +332,46 @@ void setup() {
 }
 
 void loop() {
-  display.clearDisplay();
+  display.clear();
 
   while (true) {
     ascale.readRaw();
 
-    display.setTextSize(2);
-    display.setTextColor(WHITE, BLACK);
-    display.setCursor(0, 0);
-    if (ascale.isAveraging()) {
-      display.print("AVG");
-    } else if (ascale.isAutoAveraging()) {
-      display.print("AUT");
-    } else {
-      display.print("   ");
-    }
-    double value = ascale.getUnits();
-    // Don't distract with tiny fluctuations around zero.
-    if (!ascale.isAveraging() && value < 0.3 && value > -0.3) {
-      value = 0.0;
-    }
+    display.firstPage();
+    do {
+      display.setFont(u8g2_font_profont22_tr);
 
-    // display.clearDisplay();
+      display.setCursor(0, 14);
+      if (ascale.isAveraging()) {
+        display.print("AVG");
+      } else if (ascale.isAutoAveraging()) {
+        display.print("AUT");
+      } else {
+        display.print("   ");
+      }
+      double value = ascale.getUnits();
+      // Don't distract with tiny fluctuations around zero.
+      if (!ascale.isAveraging() && value < 0.3 && value > -0.3) {
+        value = 0.0;
+      }
+      display.setCursor(45, 14);
+      display.print(float_to_str(value));
 
-    display.setCursor(45, 0);
-    display.print(float_to_str(value));
+      display.setFont(u8g2_font_profont17_tr);
+      for (int holdIndex = 0; holdIndex < 2 && holdIndex < ascale.hold_.size(); holdIndex++) {
+        display.setCursor(0, 17 * (holdIndex+2));
+        display.print("HLD");
+        display.setCursor(45, 17 * (holdIndex+2));
+        display.print(float_to_str(ascale.hold_[holdIndex]));
+      }
 
-    for (int holdIndex = 0; holdIndex < 2 && holdIndex < ascale.hold_.size(); holdIndex++) {
-      display.setTextSize(2);
-      display.setTextColor(WHITE, BLACK);
-      display.setCursor(0, 16 * (holdIndex+1));
-      display.print("HLD");
-      display.setCursor(45, 16 * (holdIndex+1));
-      display.print(float_to_str(ascale.hold_[holdIndex]));
-    }
+      display.setFont(u8g2_font_profont12_tr);
+      display.setCursor(0, 64);
+      display.print("Instant:     ");
+      display.print(float_to_str(ascale.getInstantUnits()));
+      
+    } while ( display.nextPage() );
 
-    display.setTextSize(1);
-    display.setTextColor(WHITE, BLACK);
-    display.setCursor(0, 56);
-    display.print("Instant:     ");
-    display.print(float_to_str(ascale.getInstantUnits()));
-    
-    display.display();
     
     if (wasPressed(ZERO_BUTTON_PIN)) {
       Serial.print(F("ZERO was pressed"));
