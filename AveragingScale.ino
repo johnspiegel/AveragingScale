@@ -8,20 +8,28 @@
 #include "CircularBuffer.h"
 
 // 1.3" SH1106 DiyMall display.
+#if defined(__AVR__)
 U8G2_SH1106_128X64_NONAME_2_HW_I2C display(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+#else
+U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R2, /* reset=*/ U8X8_PIN_NONE);
+#endif
 // 0.96" SSD1306 DiyMall display.
 // U8G2_SSD1306_128X64_NONAME_1_HW_I2C display(U8G2_R0,  /* reset=*/ U8X8_PIN_NONE);
 
 // HX711 circuit wiring
-const int LOADCELL_DOUT_PIN = 3;
-const int LOADCELL_SCK_PIN = 2;
+const int LOADCELL_DOUT_PIN = 8;
+const int LOADCELL_SCK_PIN = 7;
 
 // Control Button wiring
-const int ZERO_BUTTON_PIN = 12;
-const int AVG_BUTTON_PIN = 11;
+const int ZERO_BUTTON_PIN = 2;
+const int AVG_BUTTON_PIN = 3;
 
 // This a calibrated value from my scale.
+#if defined(__AVR__)
 constexpr double GRAMS_PER_RAW = 363.79 / 135703.0;
+#else
+constexpr double GRAMS_PER_RAW = 0.0009570014631347681;
+#endif
 
 char* float_to_str(float f) {
   static char fbuf[16];
@@ -34,7 +42,19 @@ char* float_to_str(float f) {
   if (f < -9999.9) {
     f = -9999.9;
   }
+
+#if defined(__AVR__)
   return dtostrf(f, 7, 1, fbuf);
+#else
+  float absf = abs(f);
+  snprintf(fbuf, sizeof(fbuf), "%5d.%1d", int(absf), int((absf - int(absf))*10));
+  if (f < 0) {
+    int i = 3;
+    for (i = 3; i >= 0 && fbuf[i] != ' '; i--) {}
+    fbuf[i] = '-';
+  }
+  return fbuf;
+#endif
 }
 
 class AveragingScale {
@@ -294,7 +314,7 @@ class AveragingScale {
 
 
 HX711 scale;
-AveragingScale ascale(&scale, GRAMS_PER_RAW, /*wiredBackwards=*/true);
+AveragingScale ascale(&scale, GRAMS_PER_RAW, /*wiredBackwards=*/false);
 
 
 void setup() {
@@ -326,6 +346,8 @@ void setup() {
   Serial.println(F("Watching button pins..."));
   watchDigitalPin(ZERO_BUTTON_PIN);
   watchDigitalPin(AVG_BUTTON_PIN);
+  watchDigitalPin(9);
+  watchDigitalPin(10);
 
   Serial.println(F("Setup complete."));
   Serial.println(F("-------------------------"));
@@ -373,6 +395,11 @@ void loop() {
       
     } while ( display.nextPage() );
 
+    // Serial.print(F("Value: "));
+    // Serial.println(ascale.getUnits());
+    // Serial.print(F("Value: "));
+    // Serial.println(float_to_str(ascale.getUnits()));
+
     
     if (wasPressed(ZERO_BUTTON_PIN)) {
       Serial.print(F("ZERO was pressed"));
@@ -391,8 +418,17 @@ void loop() {
         ascale.stopAveraging();
       }
     } else {
-      ascale.autoAverage();
-      ascale.autoAverageOff();
+      // ascale.autoAverage();
+      // ascale.autoAverageOff();
+    }
+
+    if (wasPressed(9)) {
+      Serial.print(F("9 was pressed."));
+      Serial.println();
+    }
+    if (wasPressed(10)) {
+      Serial.print(F("10 was pressed."));
+      Serial.println();
     }
 
     if (int p = getPhantoms()) {

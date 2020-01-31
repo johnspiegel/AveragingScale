@@ -1,5 +1,8 @@
 #include "buttons.h"
+
+#if defined(__AVR__)
 #include <avr/interrupt.h>
+#endif
 
 namespace {
 
@@ -23,7 +26,11 @@ volatile int bounces = 0;
 
 }  // namespace
 
+#if defined(__AVR__)
 ISR (PCINT0_vect)
+#else
+void handleButtonPress ()
+#endif
 {
   const unsigned long isr_millis = millis();
   int events = 0;
@@ -57,7 +64,7 @@ ISR (PCINT0_vect)
 }
 
 void watchDigitalPin(uint8_t pin) {
-  cli();
+  noInterrupts();
   
   pinMode(pin, INPUT_PULLUP);
 
@@ -69,17 +76,21 @@ void watchDigitalPin(uint8_t pin) {
   pinStatuses = ps;
 
   // watched_digital_pins |= (1 << pin);
-  
+
+#if defined(__AVR__)
   *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
   PCIFR  |= bit (digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
   PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
+#else
+  attachInterrupt(digitalPinToInterrupt(pin), handleButtonPress, CHANGE);
+#endif
 
-  sei();
+  interrupts();
 }
 
 bool wasPressed(uint8_t pin, uint8_t wantState) {
   bool newEvent = false;
-  cli();
+  noInterrupts();
   
   for (PinStatus *ps = pinStatuses; ps != nullptr; ps = ps->nextPinStatus) {
     if (ps->pin != pin) {
@@ -104,22 +115,22 @@ bool wasPressed(uint8_t pin, uint8_t wantState) {
     break;
   }
   
-  sei();
+  interrupts();
   return newEvent;
 }
 
 int getPhantoms() {
-  cli();
+  noInterrupts();
   int r = phantoms;
   phantoms = 0;
-  sei();
+  interrupts();
   return r;
 }
 
 int getBounces() {
-  cli();
+  noInterrupts();
   int r = bounces;
   bounces = 0;
-  sei();
+  interrupts();
   return r;
 }

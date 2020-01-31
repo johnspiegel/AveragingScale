@@ -29,7 +29,7 @@ class HX711
 
 		HX711();
 
-		virtual ~HX711();
+		~HX711();
 
 		// Initialize library with data output pin, clock input pin and gain factor.
 		// Channel selection is made by passing the appropriate gain:
