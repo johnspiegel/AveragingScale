@@ -365,6 +365,7 @@ void wakeUp() {
 
   watchDigitalPin(POWER_BUTTON_PIN);
   display.begin();
+  scale.power_up();
 }
 
 void goToSleep() {
@@ -375,6 +376,8 @@ void goToSleep() {
 
   Serial.println(F("Putting display to sleep"));
   display.setPowerSave(1);
+  Serial.println(F("Sleeping the HX711"));
+  scale.power_down();
 
   // Wait for button to settle.
   long delayUntil = millis() + 200;
