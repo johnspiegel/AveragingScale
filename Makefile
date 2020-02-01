@@ -10,7 +10,7 @@ USER_LIB_PATH := $(realpath ../libraries)
 # ARDUINO_LIBS = u8g2 Wire
 # ARDUINO_LIBS = U8g2_Arduino Wire Arduino-Scheduler
 # ARDUINO_LIBS = U8g2_Arduino Wire  SPI
-ARDUINO_LIBS = U8g2 Wire  SPI
+ARDUINO_LIBS = U8g2 Wire SPI Arduino_Low_Power RTCZero
 # BOARD_TAG    = uno
 BOARD_TAG    = nano_33_iot
 
