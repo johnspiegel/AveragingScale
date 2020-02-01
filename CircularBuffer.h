@@ -11,13 +11,13 @@ class CircularBuffer {
       }
     }
 
-    int size() {
+    int size() const {
       return size_;
     }
 
     // Index zero is the most-recently-pushed value,
     // index 1 is the second-most-recently-pushed value, etc.
-    T operator[](int index) {
+    T operator[](int index) const {
       return buffer_[(CAPACITY + nextPushIndex_ - 1 - index) % CAPACITY];
     }
 

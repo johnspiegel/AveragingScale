@@ -29,7 +29,7 @@ const int LOADCELL_SCK_PIN = 7;
 const int POWER_BUTTON_PIN = 2;
 const int ZERO_BUTTON_PIN = 3;
 const int AVG_BUTTON_PIN = 9;
-const int HOLD_BUTTON_PIN = 10;
+const int COFFEE_BUTTON_PIN = 10;
 
 // This a calibrated value from my scale.
 #if defined(__AVR__)
@@ -78,8 +78,6 @@ class AveragingScale {
     int averagingSampleCount_;
   
   public:
-    CircularBuffer<double, 2> hold_;
-
     AveragingScale(HX711* hx711, double unitsPerRaw=1.0, bool wiredBackwards=false) :
       hx711_(hx711),
       wiredBackwards_(wiredBackwards),
@@ -161,7 +159,7 @@ class AveragingScale {
       Serial.println();
     }
 
-    int32_t getRaw() {
+    int32_t getRaw() const {
       if (averaging_ || autoAveraging_) {
         return averagingSum_ / averagingSampleCount_;
       } else {
@@ -169,23 +167,23 @@ class AveragingScale {
       }
     }
 
-    int32_t get() {
+    int32_t get() const {
       return getRaw() - zero_;
     }
 
-    float getUnits() {
+    float getUnits() const {
       return get() * unitsPerRaw_;
     }
 
-    int32_t getInstant() {
+    int32_t getInstant() const {
       return buf_[0] - zero_;
     }
 
-    double getInstantUnits() {
+    double getInstantUnits() const {
       return getInstant() * unitsPerRaw_;
     }
 
-    double rawToUnits(long raw) {
+    double rawToUnits(long raw) const {
       return (raw - zero_) * unitsPerRaw_;
     }
 
@@ -197,9 +195,6 @@ class AveragingScale {
     }
 
     void stopAveraging() {
-      if (averaging_ || autoAveraging_) {
-        pushHold();
-      }
       averaging_ = false;
       autoAveraging_ = false;
     }
@@ -226,35 +221,11 @@ class AveragingScale {
       return holdValue;
     }
 
-    void pushHold() {
-      double holdValue = getUnits();
-      double unitsValue = holdValue;
-      double minDelta = holdValue;
-      for (int i = 0; i < buf_.size() && averagingSampleCount_ > 0; i++) {
-        averagingSum_ -= buf_[i];
-        averagingSampleCount_--;
-        double newUnitsValue = getUnits();
-        double delta = abs(newUnitsValue - unitsValue);
-        if (delta < minDelta) {
-          Serial.print(F("Maybe HOLD AVG: "));
-          Serial.print(unitsValue);
-          Serial.print(F(" averagingSampleCount_: "));
-          Serial.println(averagingSampleCount_);
-          holdValue = unitsValue;
-          minDelta = delta;
-        }
-        unitsValue = newUnitsValue;
-      }
-      Serial.print(F("HOLD: "));
-      Serial.println(float_to_str(holdValue));
-      hold_.push(holdValue);
-    }
-
-    bool isAveraging() {
+    bool isAveraging() const {
       return averaging_;
     }
 
-    bool isAutoAveraging() {
+    bool isAutoAveraging() const {
       return autoAveraging_;
     }
 
@@ -349,9 +320,8 @@ class AveragingScale {
     }
 };
 
-
-HX711 scale;
-AveragingScale ascale(&scale, GRAMS_PER_RAW, /*wiredBackwards=*/false);
+HX711 hx711;
+AveragingScale ascale(&hx711, GRAMS_PER_RAW, /*wiredBackwards=*/false);
 
 
 void wakeUp() {
@@ -363,9 +333,12 @@ void wakeUp() {
   Serial.print(digitalRead(POWER_BUTTON_PIN));
   Serial.println();
 
+  // setup();
+  /*
   watchDigitalPin(POWER_BUTTON_PIN);
   display.begin();
-  scale.power_up();
+  hx711.power_up();
+  */
 }
 
 void goToSleep() {
@@ -377,7 +350,7 @@ void goToSleep() {
   Serial.println(F("Putting display to sleep"));
   display.setPowerSave(1);
   Serial.println(F("Sleeping the HX711"));
-  scale.power_down();
+  hx711.power_down();
 
   // Wait for button to settle.
   long delayUntil = millis() + 200;
@@ -394,23 +367,25 @@ void goToSleep() {
 }
 
 void setup() {
-  Serial.begin(19200);
+  Serial.begin(9600);
   Serial.println(F("-------------------------"));
 
   Serial.println(F("Starting display..."));
   display.begin();
-  display.setFont(u8g2_font_profont22_tr);
+  display.setFont(u8g2_font_profont29_tr);
   display.firstPage();
   do {
-    display.setCursor(0, 14);
-    display.println(F("Averaging "));
-    display.setCursor(0, 14+22);
-    display.println(F("  Scale"));
+    display.setCursor(0, 16);
+    display.println(F("not your"));
+    display.setCursor(0, 16+23);
+    display.println(F(" average"));
+    display.setCursor(0, 16+46);
+    display.println(F("  scale"));
   } while( display.nextPage() );
-  delay(2000);
+  long splashStart = millis();
 
   Serial.println(F("Starting scale..."));
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  hx711.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
   ascale.zero(1);
   Serial.println(F("Scale started"));
 
@@ -418,15 +393,83 @@ void setup() {
   watchDigitalPin(POWER_BUTTON_PIN);
   watchDigitalPin(ZERO_BUTTON_PIN);
   watchDigitalPin(AVG_BUTTON_PIN);
-  watchDigitalPin(HOLD_BUTTON_PIN);
+  watchDigitalPin(COFFEE_BUTTON_PIN);
 
+  long delayTime = splashStart + 2000 - millis();
+  delay(delayTime);
+  Serial.print(F("Leaving splash up for: "));
+  Serial.print(delayTime);
+  Serial.println(F("ms"));
   Serial.println(F("Setup complete."));
   Serial.println(F("-------------------------"));
+}
+
+void displayAveraging(U8G2 *u8g2,
+                      double grams,
+                      bool averaging,
+                      double instantGrams,
+                      const CircularBuffer<double, 2> holds) {
+  // Current value big at top
+  u8g2->setFont(u8g2_font_profont22_tr);
+  u8g2->setCursor(0, 14);
+  if (ascale.isAveraging()) {
+    u8g2->print("AVG");
+  } else if (ascale.isAutoAveraging()) {
+    u8g2->print("AUT");
+  } else {
+    u8g2->print("   ");
+  }
+  u8g2->setCursor(46, 14);
+  u8g2->print(float_to_str(grams));
+
+  // Any hold values
+  u8g2->setFont(u8g2_font_profont17_tr);
+  for (int holdIndex = 0; holdIndex < 2 && holdIndex < holds.size(); holdIndex++) {
+    u8g2->setCursor(0, 17 * (holdIndex+2));
+    u8g2->print("HLD");
+    u8g2->setCursor(65, 17 * (holdIndex+2));
+    u8g2->print(float_to_str(holds[holdIndex]));
+  }
+
+  // Instant value
+  u8g2->setFont(u8g2_font_profont12_tr);
+  u8g2->setCursor(0, 64);
+  u8g2->print("Instant:");
+  u8g2->setCursor(86, 64);
+  u8g2->print(float_to_str(ascale.getInstantUnits()));
+}
+
+void displayCoffee(U8G2 *u8g2, double grams, long coffeeTime) {
+  char buf[16];
+  // Current value big at top
+  u8g2->setFont(u8g2_font_profont29_tr);
+  u8g2->setCursor(0, 23);
+  int minutes = (coffeeTime / 1000) / 60;
+  int seconds = (coffeeTime / 1000) % 60;
+  snprintf(buf, sizeof(buf), "  %2d:%02ds", minutes, seconds);
+  u8g2->print(buf);
+
+  u8g2->setFont(u8g2_font_profont29_tr);
+  u8g2->setCursor(0, 58);
+  snprintf(buf, sizeof(buf), "%sg", float_to_str(grams));
+  u8g2->print(static_cast<char*>(buf));
+  /*
+  u8g2->setCursor(0, 19);
+  if (ascale.isAveraging()) {
+    u8g2->print("AVG");
+  } else if (ascale.isAutoAveraging()) {
+    u8g2->print("AUT");
+  } else {
+    u8g2->print("   ");
+  }
+  */
 }
 
 void loop() {
   display.clear();
   CircularBuffer<double, 2> holds;
+  bool coffeeMode = false;
+  long coffeeStart = 0;
 
   long lastLoop = millis();
   while (true) {
@@ -449,35 +492,19 @@ void loop() {
       value = 0.0;
     }
 
+    if (coffeeMode) {
+      if (coffeeStart == 0 && value >= 1.0) {
+        coffeeStart = millis();
+      }
+    }
+
     display.firstPage();
     do {
-      display.setFont(u8g2_font_profont22_tr);
-
-      display.setCursor(0, 14);
-      if (ascale.isAveraging()) {
-        display.print("AVG");
-      } else if (ascale.isAutoAveraging()) {
-        display.print("AUT");
+      if (coffeeMode) {
+        displayCoffee(&display, value, coffeeStart ? millis() - coffeeStart : 0 );
       } else {
-        display.print("   ");
+        displayAveraging(&display, value, ascale.isAveraging(), ascale.getInstantUnits(), holds);
       }
-      display.setCursor(46, 14);
-      display.print(float_to_str(value));
-
-      display.setFont(u8g2_font_profont17_tr);
-      for (int holdIndex = 0; holdIndex < 2 && holdIndex < holds.size(); holdIndex++) {
-        display.setCursor(0, 17 * (holdIndex+2));
-        display.print("HLD");
-        display.setCursor(65, 17 * (holdIndex+2));
-        display.print(float_to_str(holds[holdIndex]));
-      }
-
-      display.setFont(u8g2_font_profont12_tr);
-      display.setCursor(0, 64);
-      display.print("Instant:");
-      display.setCursor(86, 64);
-      display.print(float_to_str(ascale.getInstantUnits()));
-      
     } while ( display.nextPage() );
 
     // Serial.print(F("Value: "));
@@ -489,6 +516,8 @@ void loop() {
       Serial.print(F("POWER was pressed"));
       Serial.println();
       goToSleep();
+      setup();
+      return;
     }
 
     if (wasPressed(ZERO_BUTTON_PIN)) {
@@ -501,13 +530,16 @@ void loop() {
     }
 
     if (wasPressed(AVG_BUTTON_PIN)) {
-      Serial.print(F("AVG was pressed; averaging: "));
-      Serial.println();
+      Serial.print(F("AVG was pressed; "));
       if (!ascale.isAveraging()) {
+        Serial.print(F("Averaging on."));
         ascale.startAveraging();
       } else { 
+        Serial.print(F("Averaging off."));
+        holds.push(value);
         ascale.stopAveraging();
       }
+      Serial.println();
     } else if (ascale.isAveraging()) {
 
       Serial.println("averaging: ");
@@ -529,12 +561,22 @@ void loop() {
       }
     }
 
-    if (wasPressed(HOLD_BUTTON_PIN)) {
-      Serial.print(F("HOLD was pressed; Holding value: "));
-      Serial.print(float_to_str(value));
+    if (wasPressed(COFFEE_BUTTON_PIN)) {
+      Serial.print(F("COFFEE was pressed"));
       Serial.println();
-      holds.push(value);
-      ascale.stopAveraging();
+      if (coffeeMode) {
+        Serial.print(F("Drink up!"));
+        Serial.println();
+        coffeeMode = false;
+      } else {
+        coffeeMode = true;
+        coffeeStart = 0;
+        Serial.print(F("Zeroing..."));
+        Serial.println();
+        ascale.setZero(ascale.getRaw());
+        Serial.print(F("Coffee Mode on!"));
+        Serial.println();
+      }
     }
 
     if (int p = getPhantoms()) {
